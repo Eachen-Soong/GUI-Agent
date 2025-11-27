@@ -43,16 +43,20 @@ DEFAULT_PLANNER_PROVIDER: APIProvider = {
     "use_requests": True,
     "url": "",
     "model_url": "",
-    "avail_models": []
+    "avail_models": [],
+    "max_tokens": 4096,
+    "temperature": 0.7
 }
 
 DEFAULT_PLANNER_PROVIDER_LOCAL: APIProvider = {
     "platform": "OpenAI",
     "key_name": "",
     "use_requests": True,
-    "url": "0.0.0.0:6666",
+    "url": "127.0.0.1:6666",
     "model_url": "",
-    "avail_models": []
+    "avail_models": [],
+    "max_tokens": 1024,
+    "temperature": 0.7
 }
 
 DEFAULT_ACTOR_PROVIDER: APIProvider = {
@@ -62,6 +66,8 @@ DEFAULT_ACTOR_PROVIDER: APIProvider = {
     "use_requests": True,
     "url": "",
     "model_url": "",
+    "max_tokens": 4096,
+    "temperature": 0.7
 }
 
 def list_available_models(url:str):
@@ -82,7 +88,7 @@ def list_available_models(url:str):
 
 def parse_api_provider(api_provider_name: str, api_provider_config: dict):
     assert 'url' in api_provider_config.keys(), f'Config of {api_provider_name} must have the api url!'
-    # 👇 Initialize url (add http:// if missing)
+    # Initialize url (add http:// if missing)
     raw_url = api_provider_config['url']
     if not (raw_url.startswith('http://') or raw_url.startswith('https://')):
         raw_url = "http://" + raw_url
@@ -94,6 +100,7 @@ def parse_api_provider(api_provider_name: str, api_provider_config: dict):
     # Set model_url
     if 'model_url' not in api_provider_config:
         api_provider_config['model_url'] = f"{api_provider_config['url']}/v1/models"
+    api_provider_config['url'] = f"{api_provider_config['url']}/v1/chat/completions"
     # Check model list with model_url
     api_provider_config['avail_models'] = list_available_models(api_provider_config['model_url'])
     # Set platform
@@ -146,22 +153,23 @@ class State(TypedDict, total=False):
     awq_4bit: bool
 
 def setup_state(state: State) -> State:
-    # =============== 基础字段 ===============
+    # =============== Basics ===============
     state.setdefault("messages", [])
     state.setdefault("planner_model", "gpt-4o")
     state.setdefault("actor_model", "ShowUI")
 
-    # Provider 结构
+    # Provider Structure
     state.setdefault("planner_provider", DEFAULT_PLANNER_PROVIDER.copy())
     state.setdefault("actor_provider",   DEFAULT_ACTOR_PROVIDER.copy())
 
-    # =============== 环境变量 API keys ===============
+    # =============== env API keys ===============
     state.setdefault("openai_api_key",    os.getenv("OPENAI_API_KEY", ""))
     state.setdefault("anthropic_api_key", os.getenv("ANTHROPIC_API_KEY", ""))
     state.setdefault("qwen_api_key",      os.getenv("QWEN_API_KEY", ""))
     state.setdefault("ui_tars_url", "")
+    state.setdefault("planner_api_key", "")
 
-    # =============== 其他状态字段 ===============
+    # =============== other status ===============
     state.setdefault("available_models", [])
     state.setdefault("responses", {})
     state.setdefault("tools", {})
@@ -172,7 +180,7 @@ def setup_state(state: State) -> State:
     state.setdefault("max_pixels", 1344)
     state.setdefault("awq_4bit", False)
 
-    # =============== system prompt (加入操作系统信息) ===============
+    # =============== system prompt ===============
     if "custom_system_prompt" not in state:
         os_name = platform.system()
         device_os_name = (
@@ -275,7 +283,7 @@ def process_input(user_input, state:State):
     for loop_msg in sampling_loop_sync(
         system_prompt_suffix=state["custom_system_prompt"],
         planner_model=state["planner_model"],
-        planner_provider=state["planner_provider"],
+        planner_provider=API_PROVIDERS[state["planner_provider"]],
         actor_model=state["actor_model"],
         actor_provider=state["actor_provider"],
         messages=state["messages"],
@@ -284,6 +292,8 @@ def process_input(user_input, state:State):
         api_response_callback=partial(_api_response_callback, response_state=state["responses"]),
         api_key=state["planner_api_key"],
         only_n_most_recent_images=state["only_n_most_recent_images"],
+        max_tokens=API_PROVIDERS[state["planner_provider"]].get('max_tokens'),
+        temperature=API_PROVIDERS[state["planner_provider"]].get('temperature'),
         selected_screen=state['selected_screen'],
         showui_max_pixels=state['max_pixels'],
         showui_awq_4bit=state['awq_4bit']
@@ -332,7 +342,7 @@ def update_custom_info(url, state):
     return gr.Dropdown(choices=avail_models, value=value, interactive=True)
 
 def get_avail_planner_list(provider_name):
-    """根据 provider 动态更新 model dropdown"""
+    """ Dynamically update model dropdown according to provider """
     provider = API_PROVIDERS[provider_name]
     models = provider.get('avail_models', [])
 

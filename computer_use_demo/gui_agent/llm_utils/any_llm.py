@@ -43,7 +43,13 @@ def run_llm(
     platform: str = "OpenAI"  # Supports "OpenAI", "Anthropic", "Gemini"
 ):
     """Send chat completion request to SSH remote server with platform-specific message formats"""
+    # validation
+    if not isinstance(messages, list):
+        raise ValueError("messages must be a list of message dictionaries")
 
+    if not url.startswith(("http://", "https://")):
+        raise ValueError("URL must include protocol (http:// or https://)")
+    
     try:
         # Prepare base message list
         final_messages = []
@@ -81,7 +87,12 @@ def run_llm(
                                 if is_image_path(cnt):
                                     # Upload image to Gemini and get file URI
                                     # Note: You need to provide the Gemini upload URL (usually different from the chat URL)
-                                    gemini_upload_url = url.replace("/v1/chat/completions", "/v1/files/upload")
+                                    if "/v1/chat/completions" in url:
+                                        gemini_upload_url = url.replace("/v1/chat/completions", "/v1/files/upload")
+                                    else:
+                                        # Try to build from base URL
+                                        base_url = url.split("/v1/")[0]
+                                        gemini_upload_url = f"{base_url}/v1/files/upload"
                                     file_uri = upload_image_to_gemini(cnt, gemini_upload_url)
                                     parts.append({
                                         "file_data": {
@@ -232,65 +243,20 @@ def is_image_path(path: str) -> bool:
     image_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.tiff', '.webp'}
     return any(path.lower().endswith(ext) for ext in image_extensions)
 
-
-# def run_oai_interleaved(messages: list, system: str, llm: str, api_key: str,
-#                         max_tokens=256, temperature=0):
-
-#     api_key = api_key or os.environ.get("OPENAI_API_KEY")
-#     if not api_key:
-#         raise ValueError("OPENAI_API_KEY is not set")
-
-#     headers = {
-#         "Content-Type": "application/json",
-#         "Authorization": f"Bearer {api_key}"
-#     }
-
-#     # OpenAI 官方 Chat Completions URL
-#     oai_url = "https://api.openai.com"
-
-#     # 调用通用 LLM 接口即可
-#     return run_llm_interleaved(
-#         messages=messages,
-#         system=system,
-#         llm=llm,
-#         url=oai_url,
-#         max_tokens=max_tokens,
-#         temperature=temperature,
-#         do_sample=False,         # OpenAI 兼容
-#         headers=headers
-#     )
-
-
 if __name__ == "__main__":
+    run_llm(
+        messages=[
+            {
+                "role": "user",
+                "content": ["Hello, what can you do?"]  # 注意：content 必须是列表
+            }
+        ],
+        system="You are a helpful AI assistant running on Linux.",  # 有意义的系统提示
+        llm="Qwen/Qwen3-VL-32B-Instruct-FP8",
+        url="http://127.0.0.1:6667/v1/chat/completions",  # 关键修复：完整API路径
+        max_tokens=256,
+        temperature=0.7,
+        do_sample=True,
+        platform="OpenAI"
+    )
     
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        raise ValueError("OPENAI_API_KEY is not set")
-    
-    # text, token_usage = run_oai_interleaved(
-    #     messages= [{"content": [
-    #                     "What is in the screenshot?",   
-    #                     "./tmp/outputs/screenshot_0b04acbb783d4706bc93873d17ba8c05.png"],
-    #                 "role": "user"
-    #                 }],
-    #     llm="gpt-4o-mini",
-    #     system="You are a helpful assistant",
-    #     api_key=api_key,
-    #     max_tokens=256,
-    #     temperature=0)
-    
-    # print(text, token_usage)
-    # text, token_usage = run_llm_interleaved(
-    #     messages= [{"content": [
-    #                     "What is in the screenshot?",   
-    #                     "tmp/outputs/screenshot_5a26d36c59e84272ab58c1b34493d40d.png"],
-    #                 "role": "user"
-    #                 }],
-    #     llm="Qwen2.5-VL-7B-Instruct",
-    #     ssh_host="10.245.92.68",
-    #     ssh_port=9192,
-    #     max_tokens=256,
-    #     temperature=0.7
-    # )
-    # print(text, token_usage)
-    # There is an introduction describing the Calyx... 36986

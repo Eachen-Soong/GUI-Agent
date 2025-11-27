@@ -25,6 +25,8 @@ class APIProvider(TypedDict):
     url: str = ""
     model_url: str = ""
     avail_models: list = []
+    max_tokens = 4096
+    temperature = 0.7
 
 def sampling_loop_sync(
     *,
@@ -40,6 +42,7 @@ def sampling_loop_sync(
     api_key: str | None = None,
     only_n_most_recent_images: int | None = None,
     max_tokens: int = 4096,
+    temperature: float = 0.7,
     selected_screen: int = 0,
     showui_max_pixels: int = 1344,
     showui_awq_4bit: bool = False,
@@ -92,6 +95,8 @@ def sampling_loop_sync(
             platform=platform,
             system_prompt_suffix=system_prompt_suffix,
             api_response_callback=api_response_callback,
+            max_tokens=max_tokens,
+            temperature=temperature,
             selected_screen=selected_screen,
             output_callback=output_callback,
             use_requests=planner_provider.get('use_requests')
