@@ -22,3 +22,4 @@ accelerate
 dashscope
 huggingface_hub
 openai
+gputil

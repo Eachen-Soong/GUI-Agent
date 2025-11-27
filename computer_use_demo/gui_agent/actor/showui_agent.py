@@ -12,7 +12,7 @@ from PIL import Image, ImageDraw
 from qwen_vl_utils import process_vision_info
 from transformers import AutoProcessor, Qwen2VLForConditionalGeneration
 
-from computer_use_demo.gui_agent.llm_utils.oai import encode_image
+from computer_use_demo.gui_agent.llm_utils.any_llm import encode_image
 from computer_use_demo.tools.colorful_text import colorful_text_showui, colorful_text_vlm
 from computer_use_demo.tools.screen_capture import get_screenshot
 

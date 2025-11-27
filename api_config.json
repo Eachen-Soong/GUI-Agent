@@ -1,0 +1,23 @@
+{
+    "OpenAI": {
+        "key_name": "OPENAI_API_KEY",
+        "key": "YOUR_KEY_HERE_OR_EMPTY",
+        "api": "api.openai.com",
+        "model_url": "https://api.openai.com/v1/models"
+    },
+    "Qwen": {
+        "key_name": "OPENAI_API_KEY",
+        "key": "YOUR_KEY_HERE_OR_EMPTY",
+        "api": "api.openai.com",
+        "model_url": "https://api.openai.com/v1/models"
+    },
+    "Gemini": {
+        "key_name": "OPENAI_API_KEY",
+        "key": "YOUR_KEY_HERE_OR_EMPTY",
+        "api": "api.openai.com",
+        "model_url": "https://api.openai.com/v1/models"
+    },
+    "LocalHost6666": {
+        "api": "0.0.0.0:6666"
+    }
+}

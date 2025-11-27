@@ -11,59 +11,59 @@ from anthropic.types import TextBlock, ToolResultBlockParam
 from anthropic.types.beta import BetaMessage, BetaTextBlock, BetaToolUseBlock, BetaMessageParam
 
 from computer_use_demo.tools.screen_capture import get_screenshot
-from computer_use_demo.gui_agent.llm_utils.oai import run_oai_interleaved, run_ssh_llm_interleaved
+from computer_use_demo.gui_agent.llm_utils.any_llm import run_llm
 from computer_use_demo.gui_agent.llm_utils.qwen import run_qwen
 from computer_use_demo.gui_agent.llm_utils.llm_utils import extract_data, encode_image
 from computer_use_demo.tools.colorful_text import colorful_text_showui, colorful_text_vlm
 
-
 class APIVLMPlanner:
+    """
+    Here we suppose the API should take the form as follows:
+      A. OpenAI API formation (Qwen takes this by default)
+      B. Anthropic formation
+      C. Gemini formation
+      D. DashScope formation
+    Among which, A, B, C can be handled with the gui_agent.llm_utils.any_llm.run_llm function, with json requests and responses;
+    TODO 1: check how to deal with D.
+    TODO 2: how to utilize the official OpenAI, Anthropic, Gemini, DashScope package.
+    If self.use_requests, then we would call the default run_llm function.
+    """
     def __init__(
         self,
-        model: str, 
-        provider: str, 
-        system_prompt_suffix: str, 
-        api_key: str,
-        output_callback: Callable, 
+        model: str,
+        url: str,
+        platform: str,
+        system_prompt_suffix: str,
+        output_callback: Callable,
         api_response_callback: Callable,
         max_tokens: int = 4096,
+        temperature: float = 0.7,
         only_n_most_recent_images: int | None = None,
         selected_screen: int = 0,
         print_usage: bool = True,
+        use_requests: bool = True
     ):
-        if model == "gpt-4o":
-            self.model = "gpt-4o-2024-11-20"
-        elif model == "gpt-4o-mini":
-            self.model = "gpt-4o-mini"  # "gpt-4o-mini"
-        elif model == "qwen2-vl-max":
-            self.model = "qwen2-vl-max"
-        elif model == "qwen2-vl-2b (ssh)":
-            self.model = "Qwen2-VL-2B-Instruct"
-        elif model == "qwen2-vl-7b (ssh)":
-            self.model = "Qwen2-VL-7B-Instruct"
-        elif model == "qwen2.5-vl-7b (ssh)":
-            self.model = "Qwen2.5-VL-7B-Instruct"
-        else:
-            raise ValueError(f"Model {model} not supported")
-        
-        self.provider = provider
+        self.model = model
+        self.url = url
+        self.platform = platform
         self.system_prompt_suffix = system_prompt_suffix
-        self.api_key = api_key
         self.api_response_callback = api_response_callback
         self.max_tokens = max_tokens
+        self.temperature = temperature
         self.only_n_most_recent_images = only_n_most_recent_images
         self.selected_screen = selected_screen
         self.output_callback = output_callback
         self.system_prompt = self._get_system_prompt() + self.system_prompt_suffix
 
-
         self.print_usage = print_usage
         self.total_token_usage = 0
-        self.total_cost = 0
+        # self.total_cost = 0
+        self.use_requests = use_requests
 
-           
     def __call__(self, messages: list):
-        
+        return self.call_requests(messages)
+
+    def call_requests(self, messages: list):
         # drop looping actions msg, byte image etc
         planner_messages = _message_filter_callback(messages)  
         print(f"filtered_messages: {planner_messages}")
@@ -78,68 +78,26 @@ class APIVLMPlanner:
         self.output_callback(f'Screenshot for {colorful_text_vlm}:\n<img src="data:image/png;base64,{image_base64}">',
                              sender="bot")
         
-        # if isinstance(planner_messages[-1], dict):
-        #     if not isinstance(planner_messages[-1]["content"], list):
-        #         planner_messages[-1]["content"] = [planner_messages[-1]["content"]]
-        #     planner_messages[-1]["content"].append(screenshot_path)
-        # elif isinstance(planner_messages[-1], str):
-        #     planner_messages[-1] = {"role": "user", "content": [{"type": "text", "text": planner_messages[-1]}]}
-        
-        # append screenshot
-        # planner_messages.append({"role": "user", "content": [{"type": "image", "image": screenshot_path}]})
-        
         planner_messages.append(screenshot_path)
         
         print(f"Sending messages to VLMPlanner: {planner_messages}")
 
-        if self.model == "gpt-4o-2024-11-20":
-            vlm_response, token_usage = run_oai_interleaved(
+        vlm_response, token_usage = run_llm(
                 messages=planner_messages,
                 system=self.system_prompt,
                 llm=self.model,
-                api_key=self.api_key,
+                url = self.url,
                 max_tokens=self.max_tokens,
-                temperature=0,
+                temperature=self.temperature,
             )
-            print(f"oai token usage: {token_usage}")
-            self.total_token_usage += token_usage
-            self.total_cost += (token_usage * 0.15 / 1000000)  # https://openai.com/api/pricing/
-            
-        elif self.model == "qwen2-vl-max":
-            vlm_response, token_usage = run_qwen(
-                messages=planner_messages,
-                system=self.system_prompt,
-                llm=self.model,
-                api_key=self.api_key,
-                max_tokens=self.max_tokens,
-                temperature=0,
-            )
-            print(f"qwen token usage: {token_usage}")
-            self.total_token_usage += token_usage
-            self.total_cost += (token_usage * 0.02 / 7.25 / 1000)  # 1USD=7.25CNY, https://help.aliyun.com/zh/dashscope/developer-reference/tongyi-qianwen-vl-plus-api
-        elif "Qwen" in self.model:
-            # 从api_key中解析host和port
-            try:
-                ssh_host, ssh_port = self.api_key.split(":")
-                ssh_port = int(ssh_port)
-            except ValueError:
-                raise ValueError("Invalid SSH connection string. Expected format: host:port")
-                
-            vlm_response, token_usage = run_ssh_llm_interleaved(
-                messages=planner_messages,
-                system=self.system_prompt,
-                llm=self.model,
-                ssh_host=ssh_host,
-                ssh_port=ssh_port,
-                max_tokens=self.max_tokens,
-            )
-        else:
-            raise ValueError(f"Model {self.model} not supported")
-            
+        print(f"Token usage: {token_usage}")
+        self.total_token_usage += token_usage
+        # self.total_cost += (token_usage * 0.15 / 1000000)  # https://openai.com/api/pricing/
+        
         print(f"VLMPlanner response: {vlm_response}")
         
         if self.print_usage:
-            print(f"VLMPlanner total token usage so far: {self.total_token_usage}. Total cost so far: $USD{self.total_cost:.5f}")
+            print(f"VLMPlanner total token usage so far: {self.total_token_usage}")
         
         vlm_response_json = extract_data(vlm_response, "json")
 
@@ -155,6 +113,43 @@ class APIVLMPlanner:
         
         return vlm_response_json
 
+    def call_openai(self, messages: list):
+        raise NotImplementedError
+
+    def call_dashscope(self, messages: list):
+        # planner_messages = _message_filter_callback(messages)  
+        # print(f"filtered_messages: {planner_messages}")
+
+        # if self.only_n_most_recent_images:
+        #     _maybe_filter_to_n_most_recent_images(planner_messages, self.only_n_most_recent_images)
+
+        # # Take a screenshot
+        # screenshot, screenshot_path = get_screenshot(selected_screen=self.selected_screen)
+        # screenshot_path = str(screenshot_path)
+        # image_base64 = encode_image(screenshot_path)
+        # self.output_callback(f'Screenshot for {colorful_text_vlm}:\n<img src="data:image/png;base64,{image_base64}">',
+        #                      sender="bot")
+        
+        # planner_messages.append(screenshot_path)
+
+        # vlm_response, token_usage = run_qwen(
+        #         messages=planner_messages,
+        #         system=self.system_prompt,
+        #         llm=self.model,
+        #         max_tokens=self.max_tokens,
+        #         temperature=0,
+        #     )
+        # print(f"qwen token usage: {token_usage}")
+        # self.total_token_usage += token_usage
+        # self.total_cost += (token_usage * 0.02 / 7.25 / 1000)  # 1USD=7.25CNY, https://help.aliyun.com/zh/dashscope/developer-reference/tongyi-qianwen-vl-plus-api
+        
+        raise NotImplementedError
+
+    def call_anthropic(self, messages: list):
+        raise NotImplementedError
+    
+    
+        
 
     def _api_response_callback(self, response: APIResponse):
         self.api_response_callback(response)
@@ -206,8 +201,6 @@ IMPORTANT NOTES:
 4. You should not include other actions, such as keyboard shortcuts.
 5. When the task is completed, you should say "Next Action": "None" in the json field.
 """ 
-
-    
 
 def _maybe_filter_to_n_most_recent_images(
     messages: list[BetaMessageParam],

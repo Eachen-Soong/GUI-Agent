@@ -1,5 +1,5 @@
 from openai import OpenAI
-from computer_use_demo.gui_agent.llm_utils.oai import encode_image
+from computer_use_demo.gui_agent.llm_utils.any_llm import encode_image
 
 _NAV_SYSTEM_GROUNDING = """
 You are a GUI agent. You are given a task and your action history, with screenshots. You need to perform the next action to complete the task. 

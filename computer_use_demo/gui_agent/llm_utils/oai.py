@@ -5,7 +5,6 @@ import requests
 from computer_use_demo.gui_agent.llm_utils.llm_utils import is_image_path, encode_image
 
 
-
 def run_oai_interleaved(messages: list, system: str, llm: str, api_key: str, max_tokens=256, temperature=0):
 
     api_key = api_key or os.environ.get("OPENAI_API_KEY")
@@ -81,7 +80,8 @@ def run_oai_interleaved(messages: list, system: str, llm: str, api_key: str, max
         print(f"Error in interleaved openAI: {e}. This may due to your invalid OPENAI_API_KEY. Please check the response: {response.json()} ")
         return response.json()
 
-def run_ssh_llm_interleaved(messages: list, system: str, llm: str, ssh_host: str, ssh_port: int, max_tokens=256, temperature=0.7, do_sample=True):
+# TODO: change into any!
+def run_llm_interleaved(messages: list, system: str, llm: str, url:str, max_tokens=256, temperature=0.7, do_sample=True):
     """Send chat completion request to SSH remote server"""
     from PIL import Image
     from io import BytesIO
@@ -107,15 +107,7 @@ def run_ssh_llm_interleaved(messages: list, system: str, llm: str, ssh_host: str
             print(f"Image processing failed: {str(e)}")
             raise
 
-
     try:
-        # Verify SSH connection info
-        if not ssh_host or not ssh_port:
-            raise ValueError("SSH_HOST and SSH_PORT are not set")
-        
-        # Build API URL
-        api_url = f"http://{ssh_host}:{ssh_port}"
-        
         # Prepare message list
         final_messages = []
         
@@ -172,7 +164,7 @@ def run_ssh_llm_interleaved(messages: list, system: str, llm: str, ssh_host: str
         
         # Send request
         response = requests.post(
-            f"{api_url}/v1/chat/completions",
+            f"{url}/v1/chat/completions",
             json=data,
             headers={"Content-Type": "application/json"},
             timeout=30
@@ -214,7 +206,7 @@ if __name__ == "__main__":
     #     temperature=0)
     
     # print(text, token_usage)
-    text, token_usage = run_ssh_llm_interleaved(
+    text, token_usage = run_llm_interleaved(
         messages= [{"content": [
                         "What is in the screenshot?",   
                         "tmp/outputs/screenshot_5a26d36c59e84272ab58c1b34493d40d.png"],

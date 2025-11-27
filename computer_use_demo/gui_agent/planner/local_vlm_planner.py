@@ -77,7 +77,7 @@ class LocalVLMPlanner:
 
         self.print_usage = print_usage
         self.total_token_usage = 0
-        self.total_cost = 0
+        # self.total_cost = 0
 
            
     def __call__(self, messages: list):

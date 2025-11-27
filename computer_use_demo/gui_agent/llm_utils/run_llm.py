@@ -1,6 +1,6 @@
 import base64
 import logging
-from .oai import run_oai_interleaved
+from .any_llm import run_oai_interleaved
 from .gemini import run_gemini_interleaved
 
 def run_llm(prompt, llm="gpt-4o-mini", max_tokens=256, temperature=0, stop=None):

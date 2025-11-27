@@ -5,7 +5,7 @@
 </h2>
 
 
-<h5 align="center"> If you like our project, please give us a star ⭐ on GitHub for the latest update.</h5>
+<h5 align="center"> This Repository is forked from the original OOTB project. </h5>
 
 <h5 align=center>
 
@@ -22,15 +22,33 @@
 
 Visit our study on GUI Agent of Claude 3.5 Computer Use [[project page]](https://computer-use-ootb.github.io). 🌐
 
-## Update
-- **[2025/02/08]** We've added the support for [**UI-TARS**](https://github.com/bytedance/UI-TARS). Follow [Cloud Deployment](https://github.com/bytedance/UI-TARS?tab=readme-ov-file#cloud-deployment) or [VLLM deployment](https://github.com/bytedance/UI-TARS?tab=readme-ov-file#local-deployment-vllm) to implement UI-TARS and run it locally in OOTB.
-- **Major Update! [2024/12/04]** **Local Run🔥** is now live! Say hello to [**<span style="color:rgb(106, 158, 210)">S</span><span style="color:rgb(111, 163, 82)">h</span><span style="color:rgb(209, 100, 94)">o</span><span style="color:rgb(238, 171, 106)">w</span>UI**](https://github.com/showlab/ShowUI), an open-source 2B vision-language-action (VLA) model for GUI Agent. Now compatible with `"gpt-4o + ShowUI" (~200x cheaper)`*  & `"Qwen2-VL + ShowUI" (~30x cheaper)`* for only few cents for each task💰! <span style="color: grey; font-size: small;">*compared to Claude Computer Use</span>.
-- **[2024/11/20]** We've added some examples to help you get hands-on experience with Claude 3.5 Computer Use.
-- **[2024/11/19]** Forget about the single-display limit set by Anthropic - you can now use **multiple displays** 🎉!
-- **[2024/11/18]** We've released a deep analysis of Claude 3.5 Computer Use: [https://arxiv.org/abs/2411.10323](https://arxiv.org/abs/2411.10323).
-- **[2024/11/11]** Forget about the low-resolution display limit set by Anthropic — you can now use *any resolution you like* and still keep the **screenshot token cost low** 🎉!
-- **[2024/11/11]** Now both **Windows** and **macOS** platforms are supported 🎉!
-- **[2024/10/25]** Now you can **Remotely Control** your computer 💻 through your mobile device 📱 — **No Mobile App Installation** required! Give it a try and have fun 🎉.
+## User Guide
+Unlike the original OOTB project, here you can freely and easily change the planner model into any model or any pther api you like!
+
+All you need is to configure in api_config.json:
+
+for each element, take Gemini as an example:
+```json
+"Gemini": {
+        "key_name": "GEMINI_API_KEY",
+        "key": "YOUR_KEY_HERE_OR_EMPTY",
+        "api": "api.gemini.com",
+        "model_url": "https://api.gemini.com/v1/models",
+        "platform": "Gemini",
+        "use_requests": true,
+    },
+```
+Note that platform's default value is "OpenAI"; use_requests's is true.
+
+Or, if you want to customize with ssh:
+```json
+"CustomOption1": {
+        "api": "api.openai.com",
+    }
+```
+The model url is by default ```f"https://{api}/v1/models"```.
+
+In this way, for any api, the system would automatically find the correspondent list of available planner models and become planner-api-agnostic, so that we would no longer have to specify the planner model's settings if we want to use something other than Qwen2.
 
 
 ## Demo Video
@@ -244,24 +262,3 @@ and [Local] models can use your own device that inferences locally with no API c
   - [ ] Optimize prompts for cost-efficiency. 💡
 - [x] **Improved Inference Speed**
   - [x] Support int4 Quantization.
-
-## Join Discussion
-Welcome to discuss with us and continuously improve the user experience of Computer Use - OOTB. Reach us using this [**Discord Channel**](https://discord.gg/vMMJTSew37) or the WeChat QR code below!
-
-<div style="display: flex; flex-direction: row; justify-content: space-around;">
-
-<!-- <img src="./assets/wechat_2.jpg" alt="gradio_interface" width="30%"> -->
-<img src="./assets/wechat_3.jpg" alt="gradio_interface" width="30%">
-
-</div>
-
-<div style="height: 30px;"></div>
-
-<hr>
-<a href="https://computer-use-ootb.github.io">
-<img src="./assets/ootb_logo.png" alt="Logo" width="30%" style="display: block; margin: 0 auto; filter: invert(1) brightness(2);">
-</a>
-
-
-
-# GUI-Agent

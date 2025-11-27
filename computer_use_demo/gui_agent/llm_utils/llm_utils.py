@@ -2,7 +2,9 @@ import os
 import re
 import ast
 import base64
-
+import requests
+from PIL import Image
+from io import BytesIO
 
 def is_image_path(text):
     # Checking if the input text ends with typical image file extensions
@@ -13,11 +15,27 @@ def is_image_path(text):
         return False
 
 
-def encode_image(image_path):
-    """Encode image file to base64."""
-    with open(image_path, "rb") as image_file:
-        return base64.b64encode(image_file.read()).decode("utf-8")
+# def encode_image(image_path):
+#     """Encode image file to base64."""
+#     with open(image_path, "rb") as image_file:
+#         return base64.b64encode(image_file.read()).decode("utf-8")
 
+# TODO: check if correct or not
+def encode_image(image_path: str, max_size=1024) -> str:
+    try:
+        with Image.open(image_path) as img:
+            img = img.convert('RGB')
+            if max(img.size) > max_size:
+                ratio = max_size / max(img.size)
+                new_size = tuple(int(dim * ratio) for dim in img.size)
+                img = img.resize(new_size, Image.LANCZOS)
+
+            buffered = BytesIO()
+            img.save(buffered, format="JPEG", quality=85)
+            return base64.b64encode(buffered.getvalue()).decode()
+    except Exception as e:
+        print(f"Image processing failed: {str(e)}")
+        raise
 
 def is_url_or_filepath(input_string):
     # Check if input_string is a URL
@@ -102,8 +120,13 @@ def parse_input(code):
     return targets, func_name, args, kwargs
 
 
+
+
 if __name__ == "__main__":
-    import json
-    s='{"Thinking": "The Docker icon has been successfully clicked, and the Docker application should now be opening. No further actions are required.", "Next Action": None}'
-    json_str = json.loads(s)
-    print(json_str)
+    # import json
+    # s='{"Thinking": "The Docker icon has been successfully clicked, and the Docker application should now be opening. No further actions are required.", "Next Action": None}'
+    # json_str = json.loads(s)
+    # print(json_str)
+    # list_remote_models('http://0.0.0.0:6666')
+    pass
+    # list_remote_models('')

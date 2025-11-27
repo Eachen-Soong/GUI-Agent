@@ -2,7 +2,7 @@ import json
 import re
 from openai import OpenAI
 
-from computer_use_demo.gui_agent.llm_utils.oai import encode_image
+from computer_use_demo.gui_agent.llm_utils.any_llm import encode_image
 from computer_use_demo.tools.screen_capture import get_screenshot
 from computer_use_demo.tools.logger import logger, truncate_string
 

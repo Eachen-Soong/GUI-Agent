@@ -2,9 +2,12 @@
 Agentic sampling loop that calls the Anthropic API and local implementation of computer use tools.
 """
 import time
+import os
 import json
 from collections.abc import Callable
 from enum import StrEnum
+import requests
+from typing_extensions import TypedDict
 
 from anthropic import APIResponse
 from anthropic.types.beta import BetaContentBlock, BetaMessage, BetaMessageParam
@@ -12,42 +15,16 @@ from computer_use_demo.tools import ToolResult
 
 from computer_use_demo.tools.colorful_text import colorful_text_showui, colorful_text_vlm
 from computer_use_demo.tools.screen_capture import get_screenshot
-from computer_use_demo.gui_agent.llm_utils.oai import encode_image
+from computer_use_demo.gui_agent.llm_utils.any_llm import encode_image
 from computer_use_demo.tools.logger import logger
 
-
-
-class APIProvider(StrEnum):
-    ANTHROPIC = "anthropic"
-    BEDROCK = "bedrock"
-    VERTEX = "vertex"
-    OPENAI = "openai"
-    QWEN = "qwen"
-    SSH = "ssh"
-
-
-PROVIDER_TO_DEFAULT_MODEL_NAME: dict[APIProvider, str] = {
-    APIProvider.ANTHROPIC: "claude-3-5-sonnet-20241022",
-    APIProvider.BEDROCK: "anthropic.claude-3-5-sonnet-20241022-v2:0",
-    APIProvider.VERTEX: "claude-3-5-sonnet-v2@20241022",
-    APIProvider.OPENAI: "gpt-4o",
-    APIProvider.QWEN: "qwen2vl",
-    APIProvider.SSH: "qwen2-vl-2b",
-}
-
-PLANNER_MODEL_CHOICES_MAPPING = {
-    "claude-3-5-sonnet-20241022": "claude-3-5-sonnet-20241022",
-    "gpt-4o": "gpt-4o",
-    "gpt-4o-mini": "gpt-4o-mini", 
-    "qwen2-vl-max": "qwen2-vl-max",
-    "qwen2-vl-2b (local)": "qwen2-vl-2b-instruct",
-    "qwen2-vl-7b (local)": "qwen2-vl-7b-instruct",
-    "qwen2.5-vl-3b (local)": "qwen2.5-vl-3b-instruct",
-    "qwen2.5-vl-7b (local)": "qwen2.5-vl-7b-instruct",
-    "qwen2-vl-2b (ssh)": "qwen2-vl-2b (ssh)",
-    "qwen2-vl-7b (ssh)": "qwen2-vl-7b (ssh)",
-}
-
+class APIProvider(TypedDict):
+    platform: str = "OpenAI"
+    key_name: str = ""
+    use_requests: bool = True
+    url: str = ""
+    model_url: str = ""
+    avail_models: list = []
 
 def sampling_loop_sync(
     *,
@@ -60,7 +37,7 @@ def sampling_loop_sync(
     output_callback: Callable[[BetaContentBlock], None],
     tool_output_callback: Callable[[ToolResult, str], None],
     api_response_callback: Callable[[APIResponse[BetaMessage]], None],
-    api_key: str,
+    api_key: str | None = None,
     only_n_most_recent_images: int | None = None,
     max_tokens: int = 4096,
     selected_screen: int = 0,
@@ -70,19 +47,18 @@ def sampling_loop_sync(
 ):
     """
     Synchronous agentic sampling loop for the assistant/tool interaction of computer use.
+
+    There's currently 2 type of planner-api-format we should consider: OpenAI and Claude.
     """
 
     # ---------------------------
     # Initialize Planner
     # ---------------------------
     
-    if planner_model in PLANNER_MODEL_CHOICES_MAPPING:
-        planner_model = PLANNER_MODEL_CHOICES_MAPPING[planner_model]
-    else:
-        raise ValueError(f"Planner Model {planner_model} not supported")
+    assert planner_model in planner_provider.get('avail_models'), ValueError(f"Planner Model {planner_model} not supported")
     
-    if planner_model == "claude-3-5-sonnet-20241022":
-        
+    platform = planner_provider.get('platform')
+    if platform == 'Claude':
         from computer_use_demo.gui_agent.planner.anthropic_agent import AnthropicActor
         from computer_use_demo.executor.anthropic_executor import AnthropicExecutor
         
@@ -106,22 +82,23 @@ def sampling_loop_sync(
 
         loop_mode = "unified"
 
-    elif planner_model in ["gpt-4o", "gpt-4o-mini", "qwen2-vl-max"]:
+    elif platform == 'OpenAI' or platform == 'Gemini':
         
         from computer_use_demo.gui_agent.planner.api_vlm_planner import APIVLMPlanner
 
         planner = APIVLMPlanner(
             model=planner_model,
-            provider=planner_provider,
+            url = planner_provider.get('url'),
+            platform=platform,
             system_prompt_suffix=system_prompt_suffix,
-            api_key=api_key,
             api_response_callback=api_response_callback,
             selected_screen=selected_screen,
             output_callback=output_callback,
+            use_requests=planner_provider.get('use_requests')
         )
         loop_mode = "planner + actor"
 
-    elif planner_model in ["qwen2-vl-2b-instruct", "qwen2-vl-7b-instruct"]:
+    elif platform == 'Local':
         
         import torch
         from computer_use_demo.gui_agent.planner.local_vlm_planner import LocalVLMPlanner
@@ -134,30 +111,16 @@ def sampling_loop_sync(
             model=planner_model,
             provider=planner_provider,
             system_prompt_suffix=system_prompt_suffix,
-            api_key=api_key,
             api_response_callback=api_response_callback,
             selected_screen=selected_screen,
             output_callback=output_callback,
             device=device
         )
         loop_mode = "planner + actor"
-        
-    elif "ssh" in planner_model:
-        planner = APIVLMPlanner(
-            model=planner_model,
-            provider=planner_provider,
-            system_prompt_suffix=system_prompt_suffix,
-            api_key=api_key,
-            api_response_callback=api_response_callback,
-            selected_screen=selected_screen,
-            output_callback=output_callback,
-        )
-        loop_mode = "planner + actor"
     else:
         logger.error(f"Planner Model {planner_model} not supported")
         raise ValueError(f"Planner Model {planner_model} not supported")
         
-
     # ---------------------------
     # Initialize Actor, Executor
     # ---------------------------
@@ -208,7 +171,7 @@ def sampling_loop_sync(
             tool_output_callback=tool_output_callback,
             selected_screen=selected_screen
         )
-        
+    # TODO: update!
     elif actor_model == "claude-3-5-sonnet-20241022":
         loop_mode = "unified"
 
@@ -302,9 +265,11 @@ def sampling_loop_sync(
             })
 
             logger.info(
-                f"End of loop. Total cost: $USD{planner.total_cost:.5f}"
+                f"End of loop. Total token usage: $USD{planner.total_token_usage:.5f}"
             )
-
 
             # Increment loop counter
             showui_loop_count += 1
+
+# if __name__ == "__main__":
+#     print(parse_api_provider())
