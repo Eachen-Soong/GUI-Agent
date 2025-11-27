@@ -32,7 +32,7 @@ for each element, take Gemini as an example:
 "Gemini": {
         "key_name": "GEMINI_API_KEY",
         "key": "YOUR_KEY_HERE_OR_EMPTY",
-        "api": "api.gemini.com",
+        "url": "api.gemini.com",
         "model_url": "https://api.gemini.com/v1/models",
         "platform": "Gemini",
         "use_requests": true,
@@ -43,10 +43,10 @@ Note that platform's default value is "OpenAI"; use_requests's is true.
 Or, if you want to customize with ssh:
 ```json
 "CustomOption1": {
-        "api": "api.openai.com",
+        "url": "api.openai.com",
     }
 ```
-The model url is by default ```f"https://{api}/v1/models"```.
+The model url is by default ```f"https://{url}/v1/models"```.
 
 In this way, for any api, the system would automatically find the correspondent list of available planner models and become planner-api-agnostic, so that we would no longer have to specify the planner model's settings if we want to use something other than Qwen2.
 

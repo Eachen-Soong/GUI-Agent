@@ -80,26 +80,31 @@ def list_available_models(url:str):
         print("[ssh] Error querying model list:", e)
         return []
 
-def parse_api_provider(api_provider_name:str, api_provider_config:dict):
-    assert 'api' in api_provider_config.keys(), f'Config of {api_provider_name} must have the api url!'
-    if 'key' in api_provider_config.keys():
+def parse_api_provider(api_provider_name: str, api_provider_config: dict):
+    assert 'url' in api_provider_config.keys(), f'Config of {api_provider_name} must have the api url!'
+    # 👇 Initialize url (add http:// if missing)
+    raw_url = api_provider_config['url']
+    if not (raw_url.startswith('http://') or raw_url.startswith('https://')):
+        raw_url = "http://" + raw_url
+    api_provider_config['url'] = raw_url  # 👈 重要：更新原始 url！
+    # Deal with API key
+    if 'key' in api_provider_config:
         os.environ[api_provider_config['key_name']] = api_provider_config['key']
         api_provider_config.pop('key')
-    if 'model_url' not in api_provider_config.keys():
-        url = api_provider_config['api']
-        if not (url.startswith('http://') or url.startswith('https://')):
-            url = "http://" + url
-        url = f"{url}/v1/models"
-        api_provider_config['model_url'] = url
+    # Set model_url
+    if 'model_url' not in api_provider_config:
+        api_provider_config['model_url'] = f"{api_provider_config['url']}/v1/models"
+    # Check model list with model_url
     api_provider_config['avail_models'] = list_available_models(api_provider_config['model_url'])
-    if 'platform' in api_provider_config.keys():
+    # Set platform
+    if 'platform' in api_provider_config:
         assert api_provider_config['platform'] in AVAILABLE_PLATFORMS
     else:
-        api_provider_config['platform'] = AVAILABLE_PLATFORMS[0] # OpenAI
-    if 'use_requests' in api_provider_config.keys():
-        api_provider_config['use_requests'] = bool(api_provider_config['use_requests'])
-    else:
+        api_provider_config['platform'] = AVAILABLE_PLATFORMS[0]  # OpenAI
+    if 'use_requests' not in api_provider_config:
         api_provider_config['use_requests'] = True
+    else:
+        api_provider_config['use_requests'] = bool(api_provider_config['use_requests'])
     provider = APIProvider(**api_provider_config)
     return provider
 
@@ -315,92 +320,35 @@ def update_selected_screen(selected_screen_name, state:State):
     except Exception as e:
         logger.exception("Failed to update selected screen: %s", e)
 
-def update_avail_planner_list(url_or_provider, state:State):
-    """
-    Given either a url string or a provider name / provider dict, query available models and
-    return a Gradio Dropdown update for planner_model.
-    This matches the binding: custom_box.change(..., outputs=planner_model)
-    """
-    # Resolve URL or provider to a models-list URL
-    url = None
-    try:
-        if isinstance(url_or_provider, str):
-            # If it's a provider key in API_PROVIDERS, try to resolve
-            if url_or_provider in API_PROVIDERS:
-                provider_cfg = API_PROVIDERS[url_or_provider]
-                url = provider_cfg.get("model_url", "")
-            else:
-                # assume raw URL
-                url = url_or_provider
-        elif isinstance(url_or_provider, dict):
-            url = url_or_provider.get("model_url", "")
-        else:
-            url = str(url_or_provider)
-    except Exception:
-        url = ""
-
-    # If the url looks like provider base (no /v1/models), try adding suffix
-    if url and not url.endswith("/v1/models"):
-        if url.startswith("http://") or url.startswith("https://"):
-            url = url.rstrip("/") + "/v1/models"
-        else:
-            url = "http://" + url.rstrip("/") + "/v1/models"
-
-    avail_models = []
-    try:
-        if url:
-            avail_models = list_available_models(url) or []
-        else:
-            avail_models = []
-    except Exception as e:
-        logger.warning("Could not list models from url=%s : %s", url, e)
-        avail_models = []
-
-    # save into state for downstream use
+def update_custom_info(url, state):
+    model_url = f"{url}/v1/models"
+    API_PROVIDERS['Custom'] = APIProvider(url=url, model_url=model_url)
+    state['planner_url'] = url
+    avail_models = list_available_models(model_url)
     state['available_models'] = avail_models
-
-    value = avail_models[0] if len(avail_models) else ""
     print(avail_models)
+    API_PROVIDERS['Custom']['avail_models'] = avail_models
+    value = avail_models[0] if len(avail_models) else ''
     return gr.Dropdown(choices=avail_models, value=value, interactive=True)
 
-def update_api_provider(choice, state:State):
-    """
-    When the planner API Provider dropdown changes.
-    This function returns updates for two outputs: custom_box (visible URL textbox) and planner_model (dropdown).
-    - If 'custom' -> show URL box and clear planner_model choices.
-    - Else hide URL box and populate planner_model using provider config (if available).
-    """
-    try:
-        if not choice:
-            # hide custom box and clear planner_model
-            return gr.update(visible=False, value=""), gr.update(choices=[], value="", interactive=True)
+def get_avail_planner_list(provider_name):
+    """根据 provider 动态更新 model dropdown"""
+    provider = API_PROVIDERS[provider_name]
+    models = provider.get('avail_models', [])
 
-        # If user selected "custom" (string), show URL textbox and empty planner_model
-        if str(choice).lower() in ("custom", "其他", "自定义"):
-            return gr.update(visible=True, value=""), gr.update(choices=[], value="", interactive=True)
+    if not models:
+        return gr.update(choices=[], value=None)
 
-        # Otherwise try to find provider config in API_PROVIDERS (case-insensitive)
-        provider_key = None
-        for k in API_PROVIDERS.keys():
-            if k.lower() == str(choice).lower():
-                provider_key = k
-                break
+    return gr.update(choices=models, value=models[0])
 
-        if provider_key:
-            provider_cfg = API_PROVIDERS[provider_key]
-            model_url = provider_cfg.get("model_url", "")
-            planner_model_update = update_avail_planner_list(model_url, state)
-            # hide custom box
-            custom_update = gr.update(visible=False, value="")
-            return custom_update, planner_model_update
-        else:
-            # fallback: treat choice as URL
-            planner_model_update = update_avail_planner_list(choice, state)
-            return gr.update(visible=False, value=""), planner_model_update
-
-    except Exception as e:
-        logger.exception("update_api_provider error: %s", e)
-        return gr.update(visible=False, value=""), gr.update(choices=[], value="", interactive=True)
+def update_custom_box_status(choice):
+    # 
+    if choice == "Custom":
+        if API_PROVIDERS[choice] is None:
+            API_PROVIDERS[choice] = APIProvider()
+        return gr.update(visible=True, value=API_PROVIDERS[choice].get('url'), interactive=True), gr.Dropdown(choices=API_PROVIDERS[choice].get('avail_models'), value='', interactive=True)
+    else:
+        return gr.update(visible=False, value=choice), gr.update()
 
 def update_planner_model(model_selection: str, state:State):
     """
@@ -535,7 +483,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
                         value="openai",
                         interactive=True,
                     )
-                    custom_box = gr.Textbox(label="URL", visible=False)
+                    custom_box = gr.Textbox(label="URL", visible=False, submit_btn=True)
 
             with gr.Column():
                 # --------------------------
@@ -671,9 +619,11 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
             submit_button = gr.Button(value="Send", variant="primary")
     chatbot = gr.Chatbot(label="Chatbot History", type="tuples", autoscroll=True, height=580, group_consecutive_messages=False)
     
-    planner_api_provider.change(fn=update_api_provider, inputs=[planner_api_provider, state], outputs=[custom_box, planner_model])
+    # planner_api_provider.change(fn=update_api_provider, inputs=[planner_api_provider, state], outputs=[custom_box, planner_model])
+    planner_api_provider.change(fn=get_avail_planner_list, inputs=planner_api_provider, outputs=planner_model)
+    planner_api_provider.change(fn=update_custom_box_status, inputs=planner_api_provider, outputs=[custom_box, planner_model])
     
-    custom_box.change(fn=update_avail_planner_list, inputs=[custom_box, state], outputs=planner_model)
+    custom_box.submit(fn=update_custom_info, inputs=[custom_box, state], outputs=planner_model)
     planner_model.change(fn=update_planner_model, inputs=[planner_model, state], outputs=[planner_api_provider, planner_api_key, actor_model])
     
     actor_model.change(fn=update_actor_model, inputs=[actor_model, state], outputs=None)
