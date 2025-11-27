@@ -113,6 +113,8 @@ def parse_api_provider_all(api_config_path=API_CONFIG_PATH):
 
 API_PROVIDERS = parse_api_provider_all(API_CONFIG_PATH)
 
+API_NAMES = list(API_PROVIDERS.keys()); API_NAMES.append("Custom")
+
 class State(TypedDict, total=False):
     messages: List[dict] = []
     planner_provider: APIProvider = APIProvider(platform='OpenAI')
@@ -358,7 +360,8 @@ def update_avail_planner_list(url_or_provider, state:State):
     state['available_models'] = avail_models
 
     value = avail_models[0] if len(avail_models) else ""
-    return gr.update(choices=avail_models, value=value, interactive=True)
+    print(avail_models)
+    return gr.Dropdown(choices=avail_models, value=value, interactive=True)
 
 def update_api_provider(choice, state:State):
     """
@@ -516,8 +519,8 @@ def update_api_key(api_key_value, state:State):
     logger.info(f"Planner API key updated. provider={state.get('planner_provider')}")
 
 with gr.Blocks(theme=gr.themes.Soft()) as demo:
-    state = gr.State({})  # Use Gradio's state management
-    setup_state(state.value)  # Initialize the state
+    state0 = setup_state(State())  # Initialize the state
+    state = gr.State(state0)  # Use Gradio's state management
     # Retrieve screen details
     gr.Markdown("# Computer Use OOTB")
     if not os.getenv("HIDE_WARNING", False):
@@ -528,7 +531,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
                 with gr.Row():
                     planner_api_provider = gr.Dropdown(
                         label="API Provider",
-                        choices=[option.value for option in APIProvider],
+                        choices=API_NAMES,
                         value="openai",
                         interactive=True,
                     )
@@ -659,9 +662,7 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
                 initial_image_value = "./assets/examples/init_states/honkai_star_rail_showui.png"  # default image path
                 image_preview = gr.Image(value=initial_image_value, label="Reference Initial State", height=260-(318.75-280))
                 hintbox = gr.Markdown("Task Hint: Selected options will appear here.")
-        # Textbox for displaying the mapped value
-        # textbox = gr.Textbox(value=initial_text_value, label="Action")
-    # api_key.change(fn=lambda key: save_to_storage(API_KEY_FILE, key), inputs=api_key)
+
     with gr.Row():
         # submit_button = gr.Button("Submit")  # Add submit button
         with gr.Column(scale=8):
