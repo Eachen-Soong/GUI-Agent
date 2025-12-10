@@ -40,7 +40,8 @@ def run_llm(
     max_tokens=256, 
     temperature=0.7, 
     do_sample=True,
-    platform: str = "OpenAI"  # Supports "OpenAI", "Anthropic", "Gemini"
+    platform: str = "OpenAI",  # Supports "OpenAI", "Anthropic", "Gemini"
+    api_key: str = None
 ):
     """Send chat completion request to SSH remote server with platform-specific message formats"""
     # validation
@@ -49,6 +50,11 @@ def run_llm(
 
     if not url.startswith(("http://", "https://")):
         raise ValueError("URL must include protocol (http:// or https://)")
+    
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"  # 可选，确保接口接收JSON格式
+    }
     
     try:
         # Prepare base message list
@@ -211,7 +217,7 @@ def run_llm(
         response = requests.post(
             url,
             json=data,
-            headers={"Content-Type": "application/json"},
+            headers=headers,
             timeout=30
         )
         

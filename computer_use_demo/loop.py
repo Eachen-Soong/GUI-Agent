@@ -21,6 +21,7 @@ from computer_use_demo.tools.logger import logger
 class APIProvider(TypedDict):
     platform: str = "OpenAI"
     key_name: str = ""
+    key: str = ""
     use_requests: bool = True
     url: str = ""
     model_url: str = ""
@@ -95,6 +96,7 @@ def sampling_loop_sync(
             platform=platform,
             system_prompt_suffix=system_prompt_suffix,
             api_response_callback=api_response_callback,
+            api_key=api_key, 
             max_tokens=max_tokens,
             temperature=temperature,
             selected_screen=selected_screen,

@@ -70,20 +70,66 @@ DEFAULT_ACTOR_PROVIDER: APIProvider = {
     "temperature": 0.7
 }
 
-def list_available_models(url:str):
+# def list_available_models(url:str):
+#     """Query remote SSH server for available models"""
+#     try:
+#         resp = requests.get(url, timeout=10)
+#         data = resp.json()
+#         if resp.status_code == 200:
+#             models = [m["id"] for m in data.get("data", [])]
+#             print("[ssh] Available models:", models)
+#             return models
+#         else:
+#             print(f"[ssh] Failed to list models: {data}")
+#             raise Exception(data)
+#     except Exception as e:
+#         print("[ssh] Error querying model list:", e)
+#         return []
+
+def list_available_models(base_url: str, api_key: str=None):
     """Query remote SSH server for available models"""
+    # 1. 配置请求头（适配 curl 中的 -H 'Authorization: Bearer your-api-key'）
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json"  # 可选，确保接口接收JSON格式
+    }
+    
     try:
-        resp = requests.get(url, timeout=10)
+        # 2. 发送GET请求（对应 curl 的 GET 方法）
+        resp = requests.get(
+            url=base_url,
+            headers=headers,
+            timeout=10
+        )
+        
+        # 3. 解析响应（保持原有逻辑，兼容状态码和JSON解析）
         data = resp.json()
+        
         if resp.status_code == 200:
+            # 提取模型ID列表（需确认接口返回格式是否为 {"data": [{"id": "模型名"}, ...]}）
             models = [m["id"] for m in data.get("data", [])]
-            print("[ssh] Available models:", models)
+            print(f"[ssh] Available models: {models}")
             return models
         else:
-            print(f"[ssh] Failed to list models: {data}")
-            raise Exception(data)
+            error_msg = f"[ssh] Failed to list models (status code: {resp.status_code}): {data}"
+            print(error_msg)
+            raise Exception(error_msg)
+    
+    # 捕获各类异常（网络错误、JSON解析错误、KeyError等）
+    except requests.exceptions.Timeout:
+        print("[ssh] Error: Request timed out (10s)")
+        return []
+    except requests.exceptions.ConnectionError:
+        print("[ssh] Error: Failed to connect to the server")
+        return []
+    except ValueError:  # JSON解析失败
+        print(f"[ssh] Error: Invalid JSON response - {resp.text if 'resp' in locals() else 'No response'}")
+        return []
+    except KeyError:  # 响应中无 "data" 或 "id" 字段
+        print(f"[ssh] Error: Missing 'data'/'id' in response - {data}")
+        return []
     except Exception as e:
-        print("[ssh] Error querying model list:", e)
+        print(f"[ssh] Error querying model list: {str(e)}")
         return []
 
 def parse_api_provider(api_provider_name: str, api_provider_config: dict):
@@ -96,13 +142,14 @@ def parse_api_provider(api_provider_name: str, api_provider_config: dict):
     # Deal with API key
     if 'key' in api_provider_config:
         os.environ[api_provider_config['key_name']] = api_provider_config['key']
-        api_provider_config.pop('key')
+        # api_provider_config.pop('key')
+    else: api_provider_config['key'] = ""
     # Set model_url
     if 'model_url' not in api_provider_config:
         api_provider_config['model_url'] = f"{api_provider_config['url']}/v1/models"
     api_provider_config['url'] = f"{api_provider_config['url']}/v1/chat/completions"
     # Check model list with model_url
-    api_provider_config['avail_models'] = list_available_models(api_provider_config['model_url'])
+    api_provider_config['avail_models'] = list_available_models(api_provider_config['model_url'], api_provider_config['key'])
     # Set platform
     if 'platform' in api_provider_config:
         assert api_provider_config['platform'] in AVAILABLE_PLATFORMS
@@ -290,7 +337,7 @@ def process_input(user_input, state:State):
         output_callback=partial(chatbot_output_callback, chatbot_state=state['chatbot_messages'], hide_images=state["hide_images"]),
         tool_output_callback=partial(_tool_output_callback, tool_state=state["tools"]),
         api_response_callback=partial(_api_response_callback, response_state=state["responses"]),
-        api_key=state["planner_api_key"],
+        api_key=API_PROVIDERS[state["planner_provider"]].get('key'),
         only_n_most_recent_images=state["only_n_most_recent_images"],
         max_tokens=API_PROVIDERS[state["planner_provider"]].get('max_tokens'),
         temperature=API_PROVIDERS[state["planner_provider"]].get('temperature'),

@@ -36,6 +36,7 @@ class APIVLMPlanner:
         system_prompt_suffix: str,
         output_callback: Callable,
         api_response_callback: Callable,
+        api_key: str = None,
         max_tokens: int = 4096,
         temperature: float = 0.7,
         only_n_most_recent_images: int | None = None,
@@ -48,6 +49,7 @@ class APIVLMPlanner:
         self.platform = platform
         self.system_prompt_suffix = system_prompt_suffix
         self.api_response_callback = api_response_callback
+        self.api_key = api_key
         self.max_tokens = max_tokens
         self.temperature = temperature
         self.only_n_most_recent_images = only_n_most_recent_images
@@ -89,6 +91,7 @@ class APIVLMPlanner:
                 url = self.url,
                 max_tokens=self.max_tokens,
                 temperature=self.temperature,
+                api_key=self.api_key
             )
         print(f"Token usage: {token_usage}")
         self.total_token_usage += token_usage
